@@ -15,11 +15,13 @@ FILE="/srv/conf_ssh.txt"
 
 # Instalando awk
 which syslog-ng || { apt-get update ; apt-get install syslog-ng -y ; }
+which iptables  || { apt-get update ; apt-get install iptables  -y ; }
 which gawk || { apt-get update ; apt-get install gawk -y ; }
 which ssh  || { apt-get update ; apt-get install ssh -y  ; }
 
 # Variáveis
 USER_SSH="lc"
+PORT="10443"
 SSHD=$(find /etc/ -iname "sshd_config")
 AUTHLOG=$(find /var/ -iname "auth.log")
 
@@ -40,7 +42,7 @@ grep "$USER_SSH" /etc/passwd || { clear ; echo 'Cadastrar novo usário para aces
 cp "$SSHD"{,.bak}
 
 # Alterar a porta padrão do ssh
-sed -i 's/^#Port.*/port 10443/' "$SSHD"
+sed -i "s/^#Port.*/port $PORT/" "$SSHD"
 
 # Conexões simultaneas
 sed -i 's/^#MaxStartups.*/MaxStartups 3:50:10/'  "$SSHD"
@@ -82,7 +84,7 @@ JAIL=$(find /etc -iname jail.conf)
 cat > "$JAIL" << EOF
 [sshd]
 enabled = true
-port = 10443
+port = "$PORT"
 filter = sshd
 logpath = /var/log/auth.log
 bantime = 7d
