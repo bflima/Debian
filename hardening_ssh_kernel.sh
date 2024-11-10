@@ -1,5 +1,18 @@
 #!/usr/bin/env/bash
 
+#!/usr/bin/env/bash
+
+## INFO ##
+## NOME.............: conf_history.sh
+## VERSÃO...........: 1.0
+## DESCRIÇÃO........: Realiza alteração no baner do sistema, e realiza ajustes no kernel do sistema
+## DATA DA CRIAÇÃO..: 08/11/2024
+## ESCRITO POR......: Bruno Lima
+## E-MAIL...........: bruno@lc.tec.br
+## DISTRO...........: Debian GNU/Linux 12
+## LICENÇA..........: GPLv3
+## Git Hub..........: https://github.com/bflima
+
 # Declaração de variáveis
 ISSUE=$(find /etc/ -iname issue)
 ISSUENET=$(find /etc/ -iname issue.net)
