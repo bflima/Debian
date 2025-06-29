@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # -----------------------------------------------------------------------------
-# NOME...............: bash_extra.sh
+# NOME...............: sources_custom.sh
 # VERSÃO.............: 1.0.0
 # DESCRIÇÃO..........: Instala pacotes extras
 # AUTOR..............: Bruno Lima
@@ -11,7 +11,7 @@
 #
 # -----------------------------------------------------------------------------
 # USO:
-#  ./bash_custom.sh
+#  ./sources_custom.sh
 
 set -euo pipefail
 
