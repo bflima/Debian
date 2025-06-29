@@ -17,7 +17,7 @@ set -euo pipefail
 
 clear
 
-[[ -f /etc/os-release ]] || { echo "ERRO: Não foi possível determinar a distribuição. Abortando."; exit1 ;}
+[[ -f /etc/os-release ]] || { echo "ERRO: Não foi possível determinar a distribuição. Abortando."; exit 1 ;}
 
 # Script homologado para distribuição debian
 OS_VERSION=$(grep -i "^id" /etc/os-release)
