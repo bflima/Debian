@@ -57,6 +57,9 @@ deb-src http://deb.debian.org/debian ${OS_CODENANE##*=}-backports main non-free-
 # see the sources.list(5) manual
 EOF
 
+# apt paralelo
+echo 'Acquire::Queue-Mode "access"; Acquire::Retries "3";' | tee /etc/apt/apt.conf.d/99parallel
+
 apt update 
 apt upgrade -y
 apt install firmware-linux firmware-linux-free firmware-linux-nonfree
