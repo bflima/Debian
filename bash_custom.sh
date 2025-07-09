@@ -2,12 +2,12 @@
 #
 # -----------------------------------------------------------------------------
 # NOME...............: bash_custom.sh
-# VERSÃO.............: 1.0.0
+# VERSÃO.............: 1.0.5
 # DESCRIÇÃO..........: Instala pacotes e define customizações de shell para o usuário root
 # AUTOR..............: Bruno Lima
 # GITHUB.............: https://github.com/bflima
 # DATA DE CRIAÇÃO....: 28/06/2025
-# ÚLTIMA ATUALIZAÇÃO.: 28/06/2025
+# ÚLTIMA ATUALIZAÇÃO.: 09/07/2025
 #
 # -----------------------------------------------------------------------------
 # USO:
@@ -25,6 +25,9 @@ OS_VERSION=$(grep -i "^id" /etc/os-release)
 
 # Verificar permissão de root
 [[ "$(id -u)" -eq 0 ]] || { echo "ERRO: Este script precisa ser executado com privilégios de root (sudo)." ; exit 1 ; }
+
+# apt paralelo
+echo 'Acquire::Queue-Mode "access"; Acquire::Retries "3";' | tee /etc/apt/apt.conf.d/99parallel
 
 apt update
 apt install vim bash-completion fzf curl grc htop btop -y
