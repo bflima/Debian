@@ -62,4 +62,4 @@ echo 'Acquire::Queue-Mode "access"; Acquire::Retries "3";' | tee /etc/apt/apt.co
 
 apt update 
 apt upgrade -y
-apt install firmware-linux firmware-linux-free firmware-linux-nonfree
+apt install -y firmware-linux firmware-linux-free firmware-linux-nonfree
