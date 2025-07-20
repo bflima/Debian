@@ -1,123 +1,166 @@
 #!/usr/bin/env bash
 
-#!/usr/bin/env/bash
+# -----------------------------------------------------------------------------
+# NOME:               harden_ssh_fail2ban.sh
+# VERSÃO:             2.0
+# DESCRIÇÃO:          Realiza hardening do SSH e configura o Fail2ban para
+#                     proteger contra ataques de força bruta no Debian.
+# AUTOR:              Bruno Lima
+# GITHUB:             https://github.com/bflima
+# -----------------------------------------------------------------------------
 
-## INFO ##
-## NOME.............: conf_history.sh
-## VERSÃO...........: 1.0
-## DESCRIÇÃO........: Atualiza instalação debian ,e posteriormente instala o programa fail2ban
-## DATA DA CRIAÇÃO..: 08/11/2024
-## ESCRITO POR......: Bruno Lima
-## E-MAIL...........: bruno@lc.tec.br
-## DISTRO...........: Debian GNU/Linux 12
-## LICENÇA..........: GPLv3
-## Git Hub..........: https://github.com/bflima
+# Modo estrito para um script mais seguro e robusto
+set -euo pipefail
 
-# Função
-ERRO() { echo "$1" ; exit 1 ; }
+# --- Variáveis Globais e Constantes ---
+readonly USER_SSH="suporte"
+readonly SSH_PORT="22"
+readonly SSHD_CONFIG_DIR="/etc/ssh/sshd_config.d"
+readonly SSHD_CUSTOM_CONF="${SSHD_CONFIG_DIR}/99-hardening.conf"
+readonly FAIL2BAN_JAIL_DIR="/etc/fail2ban/jail.d"
+readonly FAIL2BAN_CUSTOM_CONF="${FAIL2BAN_JAIL_DIR}/sshd-custom.local"
 
-# Limpar tela
-clear
+# --- Funções ---
+log_msg() {
+    echo "INFO: $(date +'%Y-%m-%d %H:%M:%S') - $1"
+}
 
-# Verificando se usuário é root
-[ "$EUID" -eq 0 ] || ERRO "Necessario ter direitos administrativos para executar esse script"
+check_root() {
+    if [ "$(id -u)" -ne 0 ]; then
+        echo "ERRO: Este script precisa ser executado com privilégios de root (sudo)." >&2
+        exit 1
+    fi
+}
 
-# Verificando se script já foi executado
-FILE="/srv/conf_ssh.txt"
-[[ -e "$FILE" ]] && ERRO "Script já foi executado" 
+install_dependencies() {
+    log_msg "Atualizando lista de pacotes e instalando dependências..."
+    apt-get update -qq
+    # gawk provê o awk, openssh-server é o servidor ssh, fail2ban é o protetor
+    apt-get install -y gawk openssh-server fail2ban
+    log_msg "Dependências verificadas/instaladas."
+}
 
-# Instalando awk
-which syslog-ng || { apt-get update ; apt-get install syslog-ng -y ; }
-which iptables  || { apt-get update ; apt-get install iptables  -y ; }
-which gawk || { apt-get update ; apt-get install gawk -y ; }
-which ssh  || { apt-get update ; apt-get install ssh -y  ; }
+configure_ssh() {
+    log_msg "Aplicando hardening no SSH..."
+    SSH_USER_PASSWD=$(grep '1000' /etc/passwd | cut -d ':' -f 1)
+    [[ -d "$SSHD_CONFIG_DIR" ]] || mkdir -p "$SSHD_CONFIG_DIR"
+    
+    # Fazer backup do arquivo principal apenas uma vez
+    if [ ! -f /etc/ssh/sshd_config.bak ]; then
+        cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
+        log_msg "Backup de /etc/ssh/sshd_config criado em /etc/ssh/sshd_config.bak"
+    fi
 
-# Variáveis
-USER_SSH="lc"
-PORT="10443"
-SSHD=$(find /etc/ -iname "sshd_config")
-AUTHLOG=$(find /var/ -iname "auth.log")
+    # Usar um arquivo de configuração separado em sshd_config.d é a melhor prática
+    # Isso evita modificar o arquivo principal e é mais fácil de gerenciar.
+    cat > "$SSHD_CUSTOM_CONF" << EOF
+# Configurações de Hardening - Gerenciado por script
+Port $SSH_PORT
+LoginGraceTime 30
+MaxAuthTries 3
+MaxStartups 3:50:10
+X11Forwarding no
+AllowAgentForwarding no
+AllowTcpForwarding no
+DebianBanner no
+VersionAddendum Windows 2022
 
-clear
-echo "Listando top usuários que tentaram conectar no servidor"
-lastb | awk '{print $1}' | sort | uniq -c | sort -rn | head -5
+# Adicionar o usuário 'suporte' à lista de permissões caso o usuário inicial com id 1000 não exista
+# ATENÇÃO: Apenas este usuário poderá logar via SSH!
+AllowUsers ${SSH_USER_PASSWD:=$USER_SSH}
 
-echo "Listando contas atacadas"
-awk 'gsub(".*sshd.*Failed password for (invalid user )?", "") {print $1}' "$AUTHLOG" | sort | uniq -c | sort -rn | head -5 || ERRO "Erro ao abrir o arquivo"
+# Desabilitar o banner do Debian (opcional)
+DebianBanner no
+EOF
+    
+    # Validar a configuração antes de reiniciar
+    log_msg "Validando nova configuração do SSH..."
+    if sshd -t; then
+        log_msg "Configuração do SSH válida. Reiniciando o serviço..."
+        systemctl restart sshd
+        log_msg "Serviço SSH reiniciado na porta $SSH_PORT."
+    else
+        log_msg "ERRO: A nova configuração do SSH é inválida!"
+    fi
+}
 
-echo "Listando ips que mais atacaram"
-awk 'gsub(".*sshd.*Failed password for (invalid user )?", "") {print $3}' "$AUTHLOG" | sort | uniq -c | sort -rn | head -5 || ERRO "Erro ao abrir o arquivo"
-
-# Verificando usuario lc existe, se não existir irá criar
-grep "$USER_SSH" /etc/passwd || { clear ; echo 'Cadastrar novo usário para acessar o ssh' ; useradd "$USER_SSH" && passwd "$USER" ; }
-
-# Backup arquivo sshd
-cp "$SSHD"{,.bak}
-
-# Alterar a porta padrão do ssh
-sed -i "s/^#Port.*/port $PORT/" "$SSHD"
-
-# Conexões simultaneas
-sed -i 's/^#MaxStartups.*/MaxStartups 3:50:10/'  "$SSHD"
-
-# Tempo de espera
-sed -i 's/^#LoginGraceTime.*/LoginGraceTime 30/' "$SSHD"
-
-# Quantidade de tentativas
-sed -i 's/^#MaxAuthTries.*/MaxAuthTries 3/'      "$SSHD"
-
-# Servidor grafico
-sed -i 's/^X11Forwarding.*/X11Forwarding no/g'   "$SSHD"
-
-# Encaminhar pacotes
-sed -i 's/^#AllowAgentForwarding.*/AllowAgentForwarding no/' "$SSHD"
-sed -i 's/^#AllowTcpForwarding.*/AllowTcpForwarding no/'     "$SSHD"
-
-# Usuarios permitidos para logar no ssh
-echo "AllowUsers $USER" >> "$SSHD" 
-
-# Reiniciar SSH
-systemctl restart ssh
-
-# instalar fail2-ban
-echo "Deseja instalar o fail2ban: S/n: "
-read -r ESCOLHA
-ESCOLHA=${ESCOLHA:=s}
-
-# Se escolha deiferente de 0, sai do programa
-[[ ${ESCOLHA,,} != 's' ]] && { echo "Script finalizado" ; exit 0 ; }
-
-# Instalando fail2ban
-which fail2ban  || { apt-get update ; apt-get install fail2ban -y ; }
-
-# Backup arquivo de politicas
-JAIL=$(find /etc -iname jail.conf)
-\cp "$JAIL" /etc/fail2ban/jail.local
-
-cat > "$JAIL" << EOF
+configure_fail2ban() {
+    log_msg "Configurando Fail2ban para o SSH..."
+    
+    # Verificar se diretórios foram criados
+    [[ -d "$FAIL2BAN_JAIL_DIR" ]] || mkdir -p /etc/fail2ban/jail.d
+    
+    # Criar um arquivo de configuração local para o SSH em jail.d/
+    # Esta é a forma correta de sobrescrever as configurações do jail.conf
+    cat > "$FAIL2BAN_CUSTOM_CONF" << EOF
 [sshd]
 enabled = true
-port = "$PORT"
-filter = sshd
-logpath = /var/log/auth.log
+# Aponta para a nova porta do SSH
+port = $SSH_PORT
+# Aumenta o tempo de ban para 1 semana
 bantime = 7d
+# Bane após 3 tentativas falhas
 maxretry = 3
 EOF
 
-# Adicionar porta ao ssh
-DEF=$(find /etc -iname defaults-debian.conf)
-echo "port = 10443" >> "$DEF"
+    log_msg "Validando configuração do Fail2ban..."
+    if fail2ban-client -d; then # -d faz um dump da config, bom para validar
+        log_msg "Reiniciando configuração do Fail2ban..."
+        systemctl restart fail2ban
+        systemctl enable fail2ban
+        log_msg "Fail2ban reiniciado e habilitado."
+    else
+        log_msg "ERRO: A nova configuração do Fail2ban é inválida!"
+        exit 1
+    fi
+}
 
-# Salvar arquivo de execução
-echo "Configuracao realizada" | tee > $FILE
-echo -e "Arquivos alterados:\n$SSHD\n$JAIL\n$DEF" >> "$FILE"
+create_ssh_user() {
+    log_msg "Verificando usuário dedicado para SSH..."
+    if ! id "$USER_SSH" &>/dev/null; then
+        log_msg "Usuário '$USER_SSH' não encontrado. Criando agora..."
+        useradd -m -s /bin/bash "$USER_SSH"
+        log_msg "Por favor, defina uma senha para o novo usuário '$USER_SSH':"
+        passwd "$USER_SSH" # CORRIGIDO: usa a variável correta
+    else
+        log_msg "Usuário '$USER_SSH' já existe."
+    fi
+}
 
-BAK=$(find /etc/ -iname "*.bak")
-for item in $BAK ; do mv "$item" /srv/; done
+# --- Função Principal ---
+main() {
+    check_root
+    
+    if [ -f "/srv/conf_ssh_completed.flag" ]; then
+        log_msg "Script de hardening já foi executado. Se desejar rodar novamente, remova o arquivo /srv/conf_ssh_completed.flag"
+        exit 0
+    fi
 
-# Reiniciar fail2ban
-systemctl restart fail2ban
+    run_log_analysis
+    
+    local ESCOLHA
+    read -r -p "Deseja continuar com a aplicação do hardening no SSH e Fail2ban? (S/n): " ESCOLHA
+    # Converte a escolha para minúsculas e define 's' como padrão se Enter for pressionado
+    ESCOLHA_LOWER=$(echo "${ESCOLHA:-s}" | tr '[:upper:]' '[:lower:]')
+    
+    if [[ "$ESCOLHA_LOWER" != "s" ]]; then
+        log_msg "Operação cancelada pelo usuário. Script finalizado."
+        exit 0
+    fi
 
-# https://www.digitalocean.com/community/tutorials/how-to-harden-openssh-on-ubuntu-18-04-pt
-# https://www.vivaolinux.com.br/artigo/SSH-Blindado-Protegendo-o-seu-sistema-de-ataques-SSH?pagina=3
+    install_dependencies
+    create_ssh_user
+    configure_ssh
+    configure_fail2ban
 
+    # Criar arquivo de "flag" para indicar que a configuração foi concluída
+    mkdir -p /srv/
+    echo "Configuração realizada em $(date)" > /srv/conf_ssh_completed.flag
+    
+    log_msg "--- HARDENING CONCLUÍDO COM SUCESSO ---"
+    log_msg "O acesso SSH agora está restrito ao usuário '$USER_SSH' na porta '$SSH_PORT'."
+    log_msg "Fail2ban está monitorando a nova porta."
+}
+
+# --- Ponto de Entrada do Script ---
+main
