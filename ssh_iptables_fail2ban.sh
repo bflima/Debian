@@ -135,8 +135,6 @@ main() {
         log_msg "Script de hardening já foi executado. Se desejar rodar novamente, remova o arquivo /srv/conf_ssh_completed.flag"
         exit 0
     fi
-
-    run_log_analysis
     
     local ESCOLHA
     read -r -p "Deseja continuar com a aplicação do hardening no SSH e Fail2ban? (S/n): " ESCOLHA
