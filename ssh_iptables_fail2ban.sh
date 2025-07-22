@@ -117,13 +117,13 @@ EOF
 
 create_ssh_user() {
     log_msg "Verificando usuário dedicado para SSH..."
-    if ! id "$USER_SSH" &>/dev/null; then
-        log_msg "Usuário '$USER_SSH' não encontrado. Criando agora..."
-        useradd -m -s /bin/bash "$USER_SSH"
-        log_msg "Por favor, defina uma senha para o novo usuário '$USER_SSH':"
-        passwd "$USER_SSH" # CORRIGIDO: usa a variável correta
+    if ! id "${SSH_USER_PASSWD:=$USER_SSH}" &>/dev/null; then
+        log_msg "Usuário ${SSH_USER_PASSWD:=$USER_SSH} não encontrado. Criando agora..."
+        useradd -m -s /bin/bash "${SSH_USER_PASSWD:=$USER_SSH}"
+        log_msg "Por favor, defina uma senha para o novo usuário ${SSH_USER_PASSWD:=$USER_SSH}: "
+        passwd "${SSH_USER_PASSWD:=$USER_SSH}" 
     else
-        log_msg "Usuário '$USER_SSH' já existe."
+        log_msg "Usuário ${SSH_USER_PASSWD:=$USER_SSH} já existe."
     fi
 }
 
